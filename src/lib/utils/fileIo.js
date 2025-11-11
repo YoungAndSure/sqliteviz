@@ -5,6 +5,16 @@ export default {
   isNDJSON(file) {
     return file && file.name.endsWith('.ndjson')
   },
+  isExcel(file) {
+    if (!file) return false
+    const excelTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel' // .xls
+    ]
+    return file.type
+      ? excelTypes.includes(file.type)
+      : /\.(xlsx|xls)$/i.test(file.name)
+  },
   isDatabase(file) {
     const dbTypes = ['application/vnd.sqlite3', 'application/x-sqlite3']
     return file.type

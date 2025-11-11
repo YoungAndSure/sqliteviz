@@ -10,7 +10,7 @@
         @click="browse"
       >
         <div class="text">
-          Drop the database, CSV, JSON or NDJSON file here or click to choose a
+          Drop the database, CSV, JSON, NDJSON or Excel file here or click to choose a
           file from your computer.
         </div>
       </div>
@@ -132,8 +132,9 @@ export default {
         this.loadDb(file)
       } else {
         const isJson = fIo.isJSON(file) || fIo.isNDJSON(file)
+        const isExcel = fIo.isExcel(file)
         events.send('database.import', file.size, {
-          from: isJson ? 'json' : 'csv',
+          from: isExcel ? 'excel' : (isJson ? 'json' : 'csv'),
           new_db: true
         })
 
@@ -149,7 +150,7 @@ export default {
     },
     browse() {
       fIo
-        .getFileFromUser('.db,.sqlite,.sqlite3,.csv,.json,.ndjson')
+        .getFileFromUser('.db,.sqlite,.sqlite3,.csv,.json,.ndjson,.xlsx,.xls')
         .then(this.checkFile)
     },
 

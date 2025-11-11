@@ -10,7 +10,7 @@
       </div>
       <db-uploader id="db-edit" type="small" />
       <export-icon tooltip="Export database" @click="exportToFile" />
-      <add-table-icon @click="addCsvJson" />
+      <add-table-icon tooltip="Add table from CSV, JSON, NDJSON or Excel" @click="addCsvJson" />
     </div>
     <div v-show="schemaVisible" class="schema">
       <table-description
@@ -82,7 +82,7 @@ export default {
       this.$store.state.db.export(`${this.dbName}.sqlite`)
     },
     async addCsvJson() {
-      this.file = await fIo.getFileFromUser('.csv,.json,.ndjson')
+      this.file = await fIo.getFileFromUser('.csv,.json,.ndjson,.xlsx,.xls')
       await this.$nextTick()
       const csvJsonImportModal = this.$refs.addCsvJson
       csvJsonImportModal.reset()
@@ -90,8 +90,9 @@ export default {
       csvJsonImportModal.open()
 
       const isJson = fIo.isJSON(this.file) || fIo.isNDJSON(this.file)
+      const isExcel = fIo.isExcel(this.file)
       events.send('database.import', this.file.size, {
-        from: isJson ? 'json' : 'csv',
+        from: isExcel ? 'excel' : (isJson ? 'json' : 'csv'),
         new_db: false
       })
     }

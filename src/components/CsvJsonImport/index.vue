@@ -19,7 +19,7 @@
         :disabled="disableDialog"
         :errorMsg="tableNameError"
       />
-      <div v-if="!isJson && !isNdJson" class="chars">
+      <div v-if="!isJson && !isNdJson && !isExcel" class="chars">
         <delimiter-selector
           v-model="delimiter"
           width="210px"
@@ -53,12 +53,20 @@
         />
       </div>
       <check-box
-        v-if="!isJson && !isNdJson"
+        v-if="!isJson && !isNdJson && !isExcel"
         :init="header"
         label="Use first row as column headers"
         :disabled="disableDialog"
         @click="changeHeaderDisplaying"
       />
+      <div v-if="isExcel && sheetNames.length > 0" class="excel-info">
+        <div class="info-text">
+          Sheet: <strong>{{ currentSheet }}</strong>
+          <span v-if="sheetNames.length > 1">
+            ({{ sheetNames.length }} sheets available)
+          </span>
+        </div>
+      </div>
       <sql-table
         v-if="previewData && previewData.rowCount > 0"
         :data-set="previewData"
@@ -140,7 +148,9 @@ export default {
       importMessages: [],
       previewData: null,
       addedTable: null,
-      tableNameError: ''
+      tableNameError: '',
+      sheetNames: [],
+      currentSheet: null
     }
   },
   computed: {
@@ -150,8 +160,11 @@ export default {
     isNdJson() {
       return fIo.isNDJSON(this.file)
     },
+    isExcel() {
+      return fIo.isExcel(this.file)
+    },
     typeName() {
-      return this.isJson || this.isNdJson ? 'JSON' : 'CSV'
+      return this.isExcel ? 'Excel' : (this.isJson || this.isNdJson ? 'JSON' : 'CSV')
     }
   },
   watch: {
@@ -165,6 +178,11 @@ export default {
       if (this.isNdJson) {
         this.delimiter = '\u001E'
         this.header = false
+      }
+    },
+    isExcel() {
+      if (this.isExcel) {
+        this.header = true
       }
     },
     tableName: time.debounce(function () {
@@ -205,6 +223,8 @@ export default {
       this.previewData = null
       this.addedTable = null
       this.tableNameError = ''
+      this.sheetNames = []
+      this.currentSheet = null
     },
     open() {
       this.tableName = this.db.sanitizeTableName(fIo.getFileName(this.file))
@@ -226,13 +246,25 @@ export default {
       }
       try {
         const start = new Date()
-        const parseResult = this.isJson
-          ? await this.getJsonParseResult(this.file)
-          : await csv.parse(this.file, config)
+        let parseResult
+        if (this.isJson) {
+          parseResult = await this.getJsonParseResult(this.file)
+        } else if (this.isExcel) {
+          const excel = (await import('@/lib/excel')).default
+          parseResult = await excel.parse(this.file, config)
+        } else {
+          parseResult = await csv.parse(this.file, config)
+        }
         const end = new Date()
         this.previewData = parseResult.data
         this.previewData.rowCount = parseResult.rowCount
         this.delimiter = parseResult.delimiter
+        
+        // Excel 特有的工作表信息
+        if (this.isExcel) {
+          this.sheetNames = parseResult.sheetNames
+          this.currentSheet = parseResult.currentSheet
+        }
 
         // In parseResult.messages we can get parse errors
         this.importMessages = parseResult.messages || []
@@ -309,9 +341,15 @@ export default {
 
       try {
         let start = new Date()
-        const parseResult = this.isJson
-          ? await this.getJsonParseResult(file)
-          : await csv.parse(this.file, config)
+        let parseResult
+        if (this.isJson) {
+          parseResult = await this.getJsonParseResult(file)
+        } else if (this.isExcel) {
+          const excel = (await import('@/lib/excel')).default
+          parseResult = await excel.parse(this.file, config)
+        } else {
+          parseResult = await csv.parse(this.file, config)
+        }
 
         let end = new Date()
 
@@ -406,13 +444,21 @@ export default {
         ? this.getNdJsonQueryExample()
         : this.isJson
           ? this.getJsonQueryExample()
-          : [
-              '/*',
-              ` * Your CSV file has been imported into ${this.addedTable} table.`,
-              ' * You can run this SQL query to make all CSV records available for charting.',
-              ' */',
-              `SELECT * FROM "${this.addedTable}"`
-            ].join('\n')
+          : this.isExcel
+            ? [
+                '/*',
+                ` * Your Excel file has been imported into ${this.addedTable} table.`,
+                ' * You can run this SQL query to make all records available for charting.',
+                ' */',
+                `SELECT * FROM "${this.addedTable}"`
+              ].join('\n')
+            : [
+                '/*',
+                ` * Your CSV file has been imported into ${this.addedTable} table.`,
+                ' * You can run this SQL query to make all CSV records available for charting.',
+                ' */',
+                `SELECT * FROM "${this.addedTable}"`
+              ].join('\n')
     },
     getNdJsonQueryExample() {
       try {
@@ -514,5 +560,12 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+.excel-info {
+  margin-bottom: 16px;
+}
+.info-text {
+  font-size: 13px;
+  color: var(--color-text-base);
 }
 </style>
