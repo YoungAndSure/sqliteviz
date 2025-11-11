@@ -1,4 +1,4 @@
-import XLSX from 'xlsx'
+import * as XLSX from 'xlsx'
 
 export default {
   /**
@@ -6,7 +6,7 @@ export default {
    * @param {File} file - Excel 文件对象
    * @param {Object} config - 配置选项
    * @param {string} config.sheetName - 要读取的工作表名称（可选，默认第一个）
-   * @param {boolean} config.header - 是否使用第一行作为列名（默认 true）
+   * @param {number} config.header - 表头行号（0 表示无表头，1 表示第一行，以此类推）
    * @param {number} config.preview - 预览行数（0 表示全部）
    * @returns {Promise} 解析结果
    */
@@ -28,9 +28,9 @@ export default {
             return
           }
 
-          // 转换为 JSON 格式
+          // 转换为 JSON 格式（不指定 header，获取原始数据）
           const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-            header: config.header !== false ? 1 : undefined,
+            header: 1, // 返回数组格式
             defval: null, // 空单元格默认值
             raw: false, // 不使用原始值，转换为字符串
           })
@@ -48,19 +48,52 @@ export default {
             return
           }
 
-          // 提取列名
+          // 处理表头和数据行
           let columns
           let rows
+          let headerRowIndex = 0
           
-          if (config.header !== false) {
-            // 使用第一行作为列名
-            columns = Object.keys(jsonData[0])
-            rows = jsonData
+          if (config.header && config.header > 0) {
+            // 使用指定行作为表头
+            headerRowIndex = config.header - 1
+            if (headerRowIndex < jsonData.length) {
+              columns = jsonData[headerRowIndex].map((header, i) => {
+                // 如果表头为空或重复，生成默认列名
+                if (!header || header === '' || columns?.includes(header)) {
+                  return `col${i + 1}`
+                }
+                return String(header)
+              })
+              rows = jsonData.slice(headerRowIndex + 1).map(row => {
+                const obj = {}
+                columns.forEach((col, i) => {
+                  obj[col] = row[i] || null
+                })
+                return obj
+              })
+            } else {
+              // 指定的表头行超出范围，使用第一行作为数据并生成列名
+              const firstRow = jsonData[0] || []
+              columns = firstRow.map((_, i) => `col${i + 1}`)
+              rows = jsonData.map(row => {
+                const obj = {}
+                columns.forEach((col, i) => {
+                  obj[col] = row[i] || null
+                })
+                return obj
+              })
+            }
           } else {
-            // 不使用表头，自动生成列名 col1, col2...
-            const firstRow = jsonData[0]
-            columns = Object.keys(firstRow).map((_, i) => `col${i + 1}`)
-            rows = jsonData
+            // 不使用表头，自动生成列名
+            const firstRow = jsonData[0] || []
+            columns = firstRow.map((_, i) => `col${i + 1}`)
+            rows = jsonData.map(row => {
+              const obj = {}
+              columns.forEach((col, i) => {
+                obj[col] = row[i] || null
+              })
+              return obj
+            })
           }
 
           // 转换为列式存储格式（与 CSV 解析器一致）

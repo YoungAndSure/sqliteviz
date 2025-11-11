@@ -52,13 +52,38 @@
           @input="preview"
         />
       </div>
-      <check-box
-        v-if="!isJson && !isNdJson && !isExcel"
-        :init="header"
-        label="Use first row as column headers"
-        :disabled="disableDialog"
-        @click="changeHeaderDisplaying"
-      />
+      <div v-if="!isJson && !isNdJson" class="header-row-selector">
+        <label class="header-label">Header row:</label>
+        <select
+          id="header-row"
+          v-model.number="headerRow"
+          :disabled="disableDialog"
+          class="header-select"
+          @change="preview"
+        >
+          <option value="0">No header (auto-generate column names)</option>
+          <option value="1">Row 1</option>
+          <option value="2">Row 2</option>
+          <option value="3">Row 3</option>
+          <option value="4">Row 4</option>
+          <option value="5">Row 5</option>
+          <option value="10">Row 10</option>
+          <option value="20">Row 20</option>
+          <option value="custom">Custom row...</option>
+        </select>
+        <text-field
+          v-if="headerRow === 'custom'"
+          id="custom-header-row"
+          v-model.number="customHeaderRow"
+          label="Row number"
+          type="number"
+          min="1"
+          width="100px"
+          :disabled="disableDialog"
+          class="custom-row-input"
+          @input="preview"
+        />
+      </div>
       <div v-if="isExcel && sheetNames.length > 0" class="excel-info">
         <div class="info-text">
           Sheet: <strong>{{ currentSheet }}</strong>
@@ -144,6 +169,8 @@ export default {
       quoteChar: '"',
       escapeChar: '"',
       header: true,
+      headerRow: 1,
+      customHeaderRow: 1,
       importCompleted: false,
       importMessages: [],
       previewData: null,
@@ -165,24 +192,40 @@ export default {
     },
     typeName() {
       return this.isExcel ? 'Excel' : (this.isJson || this.isNdJson ? 'JSON' : 'CSV')
+    },
+    actualHeaderRow() {
+      if (this.headerRow === 'custom') {
+        return this.customHeaderRow;
+      }
+      return this.headerRow;
     }
   },
   watch: {
     isJson() {
       if (this.isJson) {
         this.delimiter = '\u001E'
-        this.header = false
+        this.headerRow = 0
       }
     },
     isNdJson() {
       if (this.isNdJson) {
         this.delimiter = '\u001E'
-        this.header = false
+        this.headerRow = 0
       }
     },
     isExcel() {
       if (this.isExcel) {
-        this.header = true
+        this.headerRow = 1
+      }
+    },
+    file: {
+      immediate: true,
+      handler(newFile) {
+        if (newFile) {
+          this.$nextTick(() => {
+            this.preview()
+          })
+        }
       }
     },
     tableName: time.debounce(function () {
@@ -196,10 +239,7 @@ export default {
     }, 400)
   },
   methods: {
-    changeHeaderDisplaying(e) {
-      this.header = e
-      this.preview()
-    },
+
     cancelImport() {
       if (!this.disableDialog) {
         if (this.addedTable) {
@@ -211,7 +251,8 @@ export default {
       }
     },
     reset() {
-      this.header = !this.isJson && !this.isNdJson
+      this.headerRow = !this.isJson && !this.isNdJson ? 1 : 0
+      this.customHeaderRow = 1
       this.quoteChar = '"'
       this.escapeChar = '"'
       this.delimiter = !this.isJson && !this.isNdJson ? '' : '\u001E'
@@ -237,10 +278,10 @@ export default {
       }
       this.importCompleted = false
       const config = {
-        preview: 3,
+        preview: 20,
         quoteChar: this.quoteChar || '"',
         escapeChar: this.escapeChar,
-        header: this.header,
+        header: this.actualHeaderRow,
         delimiter: this.delimiter,
         columns: !this.isJson && !this.isNdJson ? null : ['doc']
       }
@@ -250,8 +291,8 @@ export default {
         if (this.isJson) {
           parseResult = await this.getJsonParseResult(this.file)
         } else if (this.isExcel) {
-          const excel = (await import('@/lib/excel')).default
-          parseResult = await excel.parse(this.file, config)
+          const excelModule = await import('@/lib/excel')
+          parseResult = await excelModule.default.parse(this.file, config)
         } else {
           parseResult = await csv.parse(this.file, config)
         }
@@ -316,7 +357,7 @@ export default {
       const config = {
         quoteChar: this.quoteChar || '"',
         escapeChar: this.escapeChar,
-        header: this.header,
+        header: this.actualHeaderRow,
         delimiter: this.delimiter,
         columns: !this.isJson && !this.isNdJson ? null : ['doc']
       }
@@ -343,10 +384,10 @@ export default {
         let start = new Date()
         let parseResult
         if (this.isJson) {
-          parseResult = await this.getJsonParseResult(file)
+          parseResult = await this.getJsonParseResult(this.file)
         } else if (this.isExcel) {
-          const excel = (await import('@/lib/excel')).default
-          parseResult = await excel.parse(this.file, config)
+          const excelModule = await import('@/lib/excel')
+          parseResult = await excelModule.default.parse(this.file, config)
         } else {
           parseResult = await csv.parse(this.file, config)
         }
@@ -539,8 +580,56 @@ export default {
 .char-input {
   margin-right: 44px;
 }
+
+.header-row-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.header-label {
+  font-size: 13px;
+  color: var(--color-text-base);
+  font-weight: 500;
+}
+
+.header-select {
+  min-width: 200px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 4px;
+  background-color: white;
+  font-size: 13px;
+  color: var(--color-text-base);
+}
+
+.header-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.header-select:disabled {
+  background-color: var(--color-background-disabled);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.custom-row-input {
+  min-width: 100px;
+}
+
 .preview-table {
   margin-top: 18px;
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.preview-table :deep(.table-container) {
+  max-height: 350px;
+  overflow: auto;
 }
 
 .import-errors {

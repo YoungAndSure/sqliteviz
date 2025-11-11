@@ -7,12 +7,50 @@ const hintsByCode = {
 }
 
 export default {
-  getResult(source, columns) {
+  getResult(source, columns, headerRow = 1) {
     const result = {
       columns: columns || []
     }
     const values = {}
-    if (source.meta.fields) {
+    
+    if (headerRow && headerRow > 0) {
+      // 使用指定行作为表头
+      const headerRowIndex = headerRow - 1
+      if (source.data[headerRowIndex]) {
+        const headerData = source.data[headerRowIndex]
+        const dataRows = source.data.slice(headerRowIndex + 1)
+        
+        // 生成列名
+        headerData.forEach((header, i) => {
+          let colName = String(header || '').trim()
+          if (!colName || colName === '' || result.columns.includes(colName)) {
+            colName = `col${i + 1}`
+          }
+          result.columns.push(colName)
+          values[colName] = dataRows.map(row => {
+            let value = row[i]
+            if (value instanceof Date) {
+              value = value.toISOString()
+            }
+            return value
+          })
+        })
+      } else {
+        // 表头行超出范围，使用默认列名
+        for (let i = 0; source.data[0] && i <= source.data[0].length - 1; i++) {
+          const colName = `col${i + 1}`
+          result.columns.push(colName)
+          values[colName] = source.data.map(row => {
+            let value = row[i]
+            if (value instanceof Date) {
+              value = value.toISOString()
+            }
+            return value
+          })
+        }
+      }
+    } else if (source.meta.fields) {
+      // 使用 Papa Parse 的字段检测
       source.meta.fields.forEach(col => {
         const colName = col.trim()
         result.columns.push(colName)
@@ -25,6 +63,7 @@ export default {
         })
       })
     } else if (columns) {
+      // 使用指定的列名
       columns.forEach((col, i) => {
         values[col] = source.data.map(row => {
           let value = row[i]
@@ -35,6 +74,7 @@ export default {
         })
       })
     } else {
+      // 自动生成列名
       for (let i = 0; source.data[0] && i <= source.data[0].length - 1; i++) {
         const colName = `col${i + 1}`
         result.columns.push(colName)
@@ -88,7 +128,7 @@ export default {
           let res
           try {
             res = {
-              data: this.getResult(results, config.columns),
+              data: this.getResult(results, config.columns, config.header),
               delimiter: results.meta.delimiter,
               hasErrors: false,
               rowCount: results.data.length

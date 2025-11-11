@@ -4,6 +4,13 @@
       <div ref="header-container" class="header-container">
         <div>
           <div
+            v-if="preview"
+            class="fixed-header row-number-header"
+            style="width: 50px"
+          >
+            #
+          </div>
+          <div
             v-for="(th, index) in header"
             :key="index"
             class="fixed-header"
@@ -22,11 +29,15 @@
         <table
           ref="table"
           class="sqliteviz-table"
+          :class="{ 'with-row-numbers': preview }"
           tabindex="0"
           @keydown="onTableKeydown"
         >
           <thead>
             <tr>
+              <th v-if="preview" class="row-number-header">
+                <div class="cell-data" :style="cellStyle">#</div>
+              </th>
               <th v-for="(th, index) in columns" :key="index" ref="th">
                 <div class="cell-data" :style="cellStyle">{{ th }}</div>
               </th>
@@ -34,6 +45,11 @@
           </thead>
           <tbody>
             <tr v-for="rowIndex in currentPageData.count" :key="rowIndex">
+              <td v-if="preview" class="row-number-cell">
+                <div class="cell-data" :style="cellStyle">
+                  {{ rowIndex }}
+                </div>
+              </td>
               <td
                 v-for="(col, colIndex) in columns"
                 :key="colIndex"
@@ -277,5 +293,34 @@ table.sqliteviz-table:focus {
 }
 .sqliteviz-table tbody td[aria-selected='true'] {
   box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+/* 行号列样式 */
+.row-number-header,
+.row-number-cell {
+  width: 50px !important;
+  min-width: 50px !important;
+  max-width: 50px !important;
+  text-align: center !important;
+  font-weight: 600;
+  background-color: var(--color-bg-light) !important;
+  color: var(--color-text-light-2) !important;
+  user-select: none;
+  padding: 8px 4px !important;
+}
+
+.row-number-header {
+  background-color: var(--color-bg-dark) !important;
+  color: var(--color-text-light) !important;
+}
+
+.row-number-cell:hover {
+  background-color: var(--color-bg-light) !important;
+  cursor: default;
+}
+
+.row-number-cell .cell-data {
+  text-align: center;
+  justify-content: center;
 }
 </style>
