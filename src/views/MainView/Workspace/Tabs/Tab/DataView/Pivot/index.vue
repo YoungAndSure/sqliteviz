@@ -238,26 +238,82 @@ export default {
       }
     },
 
-    saveAsHtml() {
-      if (this.viewCustomChart) {
-        this.$refs.customChart.saveAsHtml()
-        return
-      }
+    async saveAsHtml() {
+      try {
+        if (this.viewCustomChart) {
+          await this.$refs.customChart.saveAsHtml()
+          return
+        }
 
-      if (this.viewStandartChart) {
-        const chartState = chartHelper.getChartData(this.$refs.pivotOutput)
-        fIo.exportToFile(
-          chartHelper.getHtml(chartState),
-          'chart.html',
-          'text/html'
-        )
-        return
+        let result
+        if (this.viewStandartChart) {
+          const chartState = chartHelper.getChartData(this.$refs.pivotOutput)
+          result = await fIo.saveToFolder(
+            chartHelper.getHtml(chartState),
+            'chart',
+            'text/html'
+          )
+        } else {
+          result = await fIo.saveToFolder(
+            pivotHelper.getPivotHtml(this.$refs.pivotOutput),
+            'pivot',
+            'text/html'
+          )
+        }
+        
+        // 显示保存成功信息
+        if (result && result.success) {
+          console.log(`HTML Saved: File saved as ${result.fileName} in folder ${result.folderName}`)
+          alert(`HTML保存成功！\n文件: ${result.fileName}\n文件夹: ${result.folderName}`)
+        } else if (result) {
+          // 如果保存失败，显示错误信息并提示用户使用下载
+          if (result.error === 'browser_not_supported') {
+            console.warn('Browser not supported for local folder save, falling back to download')
+            alert('您的浏览器不支持本地文件夹保存功能，将使用下载方式保存文件')
+            // 回退到下载方式
+            if (this.viewStandartChart) {
+              const chartState = chartHelper.getChartData(this.$refs.pivotOutput)
+              await fIo.exportToFile(
+                chartHelper.getHtml(chartState),
+                'chart.html',
+                'text/html'
+              )
+            } else {
+              await fIo.exportToFile(
+                pivotHelper.getPivotHtml(this.$refs.pivotOutput),
+                'pivot.html',
+                'text/html'
+              )
+            }
+          } else if (result.error === 'user_cancelled') {
+            // 用户取消文件夹选择，不执行任何操作
+            console.log('User cancelled folder selection')
+          } else {
+            // 其他错误
+            console.error('Save failed:', result.message)
+            alert(`保存失败: ${result.message}`)
+          }
+        }
+      } catch (error) {
+        console.error('Save as HTML failed:', error)
+        // 如果发生意外错误，使用下载方式作为最后的保障
+        alert('保存过程中发生错误，将使用下载方式保存文件')
+        
+        if (this.viewStandartChart) {
+          const chartState = chartHelper.getChartData(this.$refs.pivotOutput)
+          await fIo.exportToFile(
+            chartHelper.getHtml(chartState),
+            'chart.html',
+            'text/html'
+          )
+        } else {
+          await fIo.exportToFile(
+            pivotHelper.getPivotHtml(this.$refs.pivotOutput),
+            'pivot.html',
+            'text/html'
+          )
+        }
       }
-      fIo.exportToFile(
-        pivotHelper.getPivotHtml(this.$refs.pivotOutput),
-        'pivot.html',
-        'text/html'
-      )
     }
   }
 }
