@@ -15,7 +15,19 @@ import DbUploader from '@/components/DbUploader'
 
 export default {
   name: 'Welcome',
-  components: { DbUploader }
+  components: { DbUploader },
+  created() {
+    try {
+      const hasImportedData = localStorage.getItem('hasImportedData') === '1'
+      const inquiries = this.$store.state.inquiries || []
+      if (hasImportedData && inquiries.length > 0) {
+        this.$router.replace('/dashboard')
+      }
+    } catch (e) {
+      // 如果本地存储不可用，忽略错误，继续正常流程
+      console.error(e)
+    }
+  }
 }
 </script>
 

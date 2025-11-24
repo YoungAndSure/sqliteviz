@@ -91,6 +91,20 @@ class Database {
     })
   }
 
+  async loadFromArrayBuffer(buffer, dbName = 'database') {
+    const res = await this.pw.postMessage({
+      action: 'open',
+      buffer
+    })
+
+    if (res.error) {
+      throw new Error(res.error)
+    }
+
+    this.dbName = dbName
+    await this.refreshSchema()
+  }
+
   async refreshSchema() {
     const getSchemaSql = `
     WITH columns as (
@@ -128,6 +142,14 @@ class Database {
     }
     fu.exportToFile(data, fileName)
     events.send('database.export', data.byteLength, { to: 'sqlite' })
+  }
+
+  async exportRaw() {
+    const data = await this.pw.postMessage({ action: 'export' })
+    if (data.error) {
+      throw new Error(data.error)
+    }
+    return data
   }
 
   async validateTableName(name) {

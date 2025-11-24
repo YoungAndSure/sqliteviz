@@ -60,6 +60,8 @@ import ChangeDbIcon from '@/components/svg/changeDb'
 import database from '@/lib/database'
 import CsvJsonImport from '@/components/CsvJsonImport'
 import events from '@/lib/utils/events'
+import parserService from '@/lib/parserService'
+import dbPersistence from '@/lib/dbPersistence'
 
 export default {
   name: 'DbUploader',
@@ -113,6 +115,12 @@ export default {
 
     async finish() {
       this.$store.commit('setDb', this.newDb)
+      try {
+        localStorage.setItem('hasImportedData', '1')
+        await dbPersistence.saveDb(this.newDb)
+      } catch (e) {
+        console.error(e)
+      }
       if (this.$route.path !== '/workspace') {
         this.$router.push('/workspace')
       }
@@ -130,6 +138,12 @@ export default {
 
       if (fIo.isDatabase(file)) {
         this.loadDb(file)
+      } else if (fIo.isPDF(file)) {
+        // 先仅识别 PDF，暂不支持解析
+        alert('暂不支持直接导入 PDF 流水，请先导出为 CSV 或 Excel 再导入。')
+        this.state = ''
+        this.newDb.shutDown()
+        this.newDb = null
       } else {
         const isJson = fIo.isJSON(file) || fIo.isNDJSON(file)
         const isExcel = fIo.isExcel(file)
@@ -138,6 +152,20 @@ export default {
           new_db: true
         })
 
+        // 先尝试识别为流水文件并直接导入到标准表
+        const imported = await parserService.tryImportAsTransactions(
+          this.newDb,
+          file
+        )
+
+        if (imported) {
+          // 标准流水导入成功，直接完成导入流程
+          await this.animationPromise
+          await this.finish()
+          return
+        }
+
+        // 否则回退到原有 CSV/JSON/Excel 通用导入流程
         this.file = file
         await this.$nextTick()
         const csvJsonImportModal = this.$refs.addCsvJson
@@ -150,7 +178,7 @@ export default {
     },
     browse() {
       fIo
-        .getFileFromUser('.db,.sqlite,.sqlite3,.csv,.json,.ndjson,.xlsx,.xls')
+        .getFileFromUser('.db,.sqlite,.sqlite3,.csv,.json,.ndjson,.xlsx,.xls,.pdf')
         .then(this.checkFile)
     },
 

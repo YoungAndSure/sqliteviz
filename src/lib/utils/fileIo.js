@@ -15,6 +15,12 @@ export default {
       ? excelTypes.includes(file.type)
       : /\.(xlsx|xls)$/i.test(file.name)
   },
+  isPDF(file) {
+    if (!file) return false
+    return file.type
+      ? file.type === 'application/pdf'
+      : /\.pdf$/i.test(file.name)
+  },
   isDatabase(file) {
     const dbTypes = ['application/vnd.sqlite3', 'application/x-sqlite3']
     return file.type

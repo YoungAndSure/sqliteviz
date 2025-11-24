@@ -5,6 +5,7 @@
         <img src="~@/assets/images/logo_simple.svg" />
       </a>
       <router-link to="/workspace">Workspace</router-link>
+      <router-link to="/dashboard">Dashboard</router-link>
       <router-link to="/inquiries">Inquiries</router-link>
       <a href="https://sqliteviz.com/docs" target="_blank">Help</a>
     </div>
@@ -28,6 +29,9 @@
       </button>
       <button id="create-btn" class="primary" @click="createNewInquiry">
         Create
+      </button>
+      <button id="clear-data-btn" class="secondary" @click="clearData">
+        Clear data
       </button>
       <app-diagnostic-info />
     </div>
@@ -93,6 +97,7 @@ import storedInquiries from '@/lib/storedInquiries'
 import AppDiagnosticInfo from './AppDiagnosticInfo'
 import events from '@/lib/utils/events'
 import eventBus from '@/lib/eventBus'
+import dbPersistence from '@/lib/dbPersistence'
 
 export default {
   name: 'MainMenu',
@@ -145,6 +150,25 @@ export default {
       })
 
       events.send('inquiry.create', null, { auto: false })
+    },
+    async clearData() {
+      if (
+        !window.confirm(
+          '这将清除本地保存的数据库和所有自定义图表配置，确定继续吗？'
+        )
+      ) {
+        return
+      }
+      try {
+        await dbPersistence.clearDb()
+        localStorage.removeItem('hasImportedData')
+        storedInquiries.updateStorage([])
+        this.$store.commit('setInquiries', [])
+        // 简单起见，刷新页面以重置所有状态
+        window.location.href = '/'
+      } catch (e) {
+        console.error(e)
+      }
     },
     cancelSave() {
       this.errorMsg = null
