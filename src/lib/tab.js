@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import time from '@/lib/utils/time'
 import events from '@/lib/utils/events'
+import pythonSqlRunner from '@/lib/pythonSqlRunner'
 
 export default class Tab {
   constructor(state, inquiry = {}) {
@@ -20,9 +21,9 @@ export default class Tab {
     this.error = null
     this.time = 0
     this.layout = inquiry.layout || {
-      sqlEditor: 'above',
-      table: 'bottom',
-      dataView: 'hidden'
+      sqlEditor: 'bottom',
+      table: 'hidden',
+      dataView: 'above'
     }
     this.maximize = inquiry.maximize
 
@@ -36,16 +37,32 @@ export default class Tab {
     this.result = null
     this.error = null
     const db = this.state.db
+    const sql = (this.query || '').trim()
+
+    if (!sql) {
+      this.isGettingResults = false
+      return
+    }
+
     try {
       const start = new Date()
-      this.result = await db.execute(this.query + ';')
+      let result
+
+      if (sql.toLowerCase().startsWith('select')) {
+        const buffer = await db.exportRaw()
+        result = await pythonSqlRunner.runSql(sql, buffer)
+      } else {
+        result = await db.execute(sql + ';')
+        await db.refreshSchema()
+      }
+
+      this.result = result
       this.time = time.getPeriod(start, new Date())
 
-      if (this.result && this.result.values) {
-        events.send(
-          'resultset.create',
-          this.result.values[this.result.columns[0]].length
-        )
+      if (this.result && this.result.values && this.result.columns) {
+        const firstCol = this.result.columns[0]
+        const values = this.result.values[firstCol] || []
+        events.send('resultset.create', values.length)
       }
 
       events.send('query.run', parseFloat(this.time), { status: 'success' })
@@ -57,7 +74,7 @@ export default class Tab {
 
       events.send('query.run', 0, { status: 'error' })
     }
-    db.refreshSchema()
+
     this.isGettingResults = false
   }
 }
